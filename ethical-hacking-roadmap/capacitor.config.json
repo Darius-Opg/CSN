@@ -1,0 +1,5 @@
+{
+  "appId": "mycsnapp.netlify.app",
+  "appName": "CSN",
+  "webDir": "dist"
+}

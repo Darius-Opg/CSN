@@ -1,0 +1,85 @@
+name: Build and deploy ethical hacking roadmap
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - ethical-hacking-roadmap/**
+      - .github/workflows/mycsn.yml
+  pull_request:
+    paths:
+      - ethical-hacking-roadmap/**
+      - .github/workflows/mycsn.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ethical-hacking-roadmap/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        working-directory: ethical-hacking-roadmap
+        run: npm ci
+
+      - name: Build site
+        working-directory: ethical-hacking-roadmap
+        run: npm run build -- --base=./
+
+      - name: Sync Capacitor Android project
+        working-directory: ethical-hacking-roadmap
+        run: npx cap sync android
+
+      - name: Build Android debug APK
+        working-directory: ethical-hacking-roadmap/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethical-hacking-roadmap-debug-apk
+          path: ethical-hacking-roadmap/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ethical-hacking-roadmap/dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
